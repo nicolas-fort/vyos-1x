@@ -1,0 +1,61 @@
+#!/usr/sbin/nft -f
+
+{% if cleanup_commands is defined %}
+{%   for command in cleanup_commands %}
+{{ command }}
+{%   endfor %}
+{% endif %}
+
+include "/run/nftables_defines.conf"
+
+table ip mangle {
+{% if first_install is defined %}
+    chain VYOS_PBR_PREROUTING {
+        type filter hook prerouting priority -150; policy accept;
+    }
+    chain VYOS_PBR_POSTROUTING {
+        type filter hook postrouting priority -150; policy accept;
+    }
+{% endif %}
+{% if route is defined and route is not none -%}
+{%   for route_text, conf in route.items() %}
+    chain VYOS_PBR_{{ route_text }} {
+{%     if conf.rule is defined %}
+{%       for rule_id, rule_conf in conf.rule.items() if rule_conf.disable is not defined %}
+        {{ rule_conf | nft_rule(route_text, rule_id, 'ip') }}
+{%       endfor %}
+{%     endif %}
+{%     if conf.default_action is defined %}
+        counter {{ conf.default_action | nft_action }} comment "{{ name_text }} default-action {{ conf.default_action }}"
+{%     else %}
+        counter return
+{%     endif %}
+    }
+{%   endfor %}
+{%- endif %}
+}
+
+table ip6 mangle {
+{% if first_install is defined %}
+    chain VYOS_PBR6_PREROUTING {
+        type filter hook prerouting priority -150; policy accept;
+    }
+    chain VYOS_PBR6_POSTROUTING {
+        type filter hook postrouting priority -150; policy accept;
+    }
+{% endif %}
+{% if route6 is defined and route6 is not none %}
+{%   for route_text, conf in route6.items() %}
+    chain VYOS_PBR6_{{ route_text }} {
+{%     if conf.rule is defined %}
+{%       for rule_id, rule_conf in conf.rule.items() if rule_conf.disable is not defined %}
+        {{ rule_conf | nft_rule(route_text, rule_id, 'ip6') }}
+{%       endfor %}
+{%     endif %}
+{%     if conf.default_action is defined %}
+        counter {{ conf.default_action | nft_action }} comment "{{ name_text }} default-action {{ conf.default_action }}"
+{%     endif %}
+    }
+{%   endfor %}
+{% endif %}
+}
