@@ -6,48 +6,81 @@
 {% if first_install is not vyos_defined %}
 delete table ip vyos_filter
 {% endif %}
+## So farOne table for all IP filter chains
 table ip vyos_filter {
-    chain VYOS_FW_FORWARD {
-        type filter hook forward priority 0; policy accept;
-{% if state_policy is vyos_defined %}
+    # firewall ip forward filter entries
+{% if ip is vyos_defined %}
+## IP find
+{%     if ip.forward is vyos_defined %}
+## IP.FORWARD find
+{%         set ns = namespace(sets=[]) %}
+{%         for prior, conf in ip.forward.items() %}
+    chain VYOS_FORWARD_{{ prior }} {
+        type filter hook forward priority {{ prior }}; policy accept;
+{%             if state_policy is vyos_defined %}
         jump VYOS_STATE_POLICY
-{% endif %}
-{% if interface is vyos_defined %}
-{%     for ifname, ifconf in interface.items() %}
-{%         if ifconf.in is vyos_defined and ifconf.in.name is vyos_defined %}
-        iifname {{ ifname }} counter jump NAME_{{ ifconf.in.name }}
-{%         endif %}
-{%         if ifconf.out is vyos_defined and ifconf.out.name is vyos_defined %}
-        oifname {{ ifname }} counter jump NAME_{{ ifconf.out.name }}
-{%         endif %}
-{%     endfor %}
-{% endif %}
-        jump VYOS_POST_FW
+{%             endif %}        
+{%             if conf.rule is vyos_defined %}
+{%                 for rule_id, rule_conf in conf.rule.items() if rule_conf.disable is not vyos_defined %}
+            {{ rule_conf | nft_rule(prior, rule_id) }}
+{%                     if rule_conf.recent is vyos_defined %}
+{%                         set ns.sets = ns.sets + [prior + '_' + rule_id] %}
+{%                     endif %}
+{%                 endfor %}
+{%             endif %}
+            {{ conf | nft_default_rule(prior) }}
+            # jump VYOS_POST_FW
     }
-    chain VYOS_FW_LOCAL {
-        type filter hook input priority 0; policy accept;
-{% if state_policy is vyos_defined %}
+{%         endfor %}
+{%     endif %}
+
+{%     if ip.input is vyos_defined %}
+## IP.input find
+{%         set ns = namespace(sets=[]) %}
+{%         for prior, conf in ip.input.items() %}
+    chain VYOS_INPUT_{{ prior }} {
+        type filter hook input priority {{ prior }}; policy accept;
+{%             if state_policy is vyos_defined %}
         jump VYOS_STATE_POLICY
-{% endif %}
-{% if interface is vyos_defined %}
-{%     for ifname, ifconf in interface.items() %}
-{%         if ifconf.local is vyos_defined and ifconf.local.name is vyos_defined %}
-        iifname {{ ifname }} counter jump NAME_{{ ifconf.local.name }}
-{%         endif %}
-{%     endfor %}
-{% endif %}
-        jump VYOS_POST_FW
+{%             endif %}        
+{%             if conf.rule is vyos_defined %}
+{%                 for rule_id, rule_conf in conf.rule.items() if rule_conf.disable is not vyos_defined %}
+            {{ rule_conf | nft_rule(prior, rule_id) }}
+{%                     if rule_conf.recent is vyos_defined %}
+{%                         set ns.sets = ns.sets + [prior + '_' + rule_id] %}
+{%                     endif %}
+{%                 endfor %}
+{%             endif %}
+            {{ conf | nft_default_rule(prior) }}
+            # jump VYOS_POST_FW
     }
-    chain VYOS_FW_OUTPUT {
-        type filter hook output priority 0; policy accept;
-{% if state_policy is vyos_defined %}
+{%         endfor %}
+{%     endif %}
+
+{%     if ip.output is vyos_defined %}
+## IP.output find
+{%         set ns = namespace(sets=[]) %}
+{%         for prior, conf in ip.output.items() %}
+    chain VYOS_OUTPUT_{{ prior }} {
+        type filter hook input priority {{ prior }}; policy accept;
+{%             if state_policy is vyos_defined %}
         jump VYOS_STATE_POLICY
+{%             endif %}        
+{%             if conf.rule is vyos_defined %}
+{%                 for rule_id, rule_conf in conf.rule.items() if rule_conf.disable is not vyos_defined %}
+            {{ rule_conf | nft_rule(prior, rule_id) }}
+{%                     if rule_conf.recent is vyos_defined %}
+{%                         set ns.sets = ns.sets + [prior + '_' + rule_id] %}
+{%                     endif %}
+{%                 endfor %}
+{%             endif %}
+            {{ conf | nft_default_rule(prior) }}
+            # jump VYOS_POST_FW
+    }
+{%         endfor %}
+{%     endif %}
 {% endif %}
-        jump VYOS_POST_FW
-    }
-    chain VYOS_POST_FW {
-        return
-    }
+
     chain VYOS_FRAG_MARK {
         type filter hook prerouting priority -450; policy accept;
         ip frag-off & 0x3fff != 0 meta mark set 0xffff1 return
