@@ -354,6 +354,7 @@
           </node>
         </children>
       </node>
+      #include <include/firewall/state-policy.xml.i>
       <tagNode name="zone">
         <properties>
           <help>Zone-policy</help>
