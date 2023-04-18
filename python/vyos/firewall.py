@@ -80,7 +80,7 @@ def nft_action(vyos_action):
         return 'return'
     return vyos_action
 
-def parse_rule(rule_conf, fw_name, rule_id, ip_name):
+def parse_rule(rule_conf, hook, fw_name, rule_id, ip_name):
     output = []
     def_suffix = '6' if ip_name == 'ip6' else ''
 
@@ -324,7 +324,7 @@ def parse_rule(rule_conf, fw_name, rule_id, ip_name):
     if 'recent' in rule_conf:
         count = rule_conf['recent']['count']
         time = rule_conf['recent']['time']
-        output.append(f'add @RECENT{def_suffix}_{fw_name}_{rule_id} {{ {ip_name} saddr limit rate over {count}/{time} burst {count} packets }}')
+        output.append(f'add @RECENT{def_suffix}_{hook}_{fw_name}_{rule_id} {{ {ip_name} saddr limit rate over {count}/{time} burst {count} packets }}')
 
     if 'time' in rule_conf:
         output.append(parse_time(rule_conf['time']))

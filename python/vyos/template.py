@@ -573,9 +573,9 @@ def nft_action(vyos_action):
     return vyos_action
 
 @register_filter('nft_rule')
-def nft_rule(rule_conf, fw_name, rule_id, ip_name='ip'):
+def nft_rule(rule_conf, fw_hook, fw_name, rule_id, ip_name='ip'):
     from vyos.firewall import parse_rule
-    return parse_rule(rule_conf, fw_name, rule_id, ip_name)
+    return parse_rule(rule_conf, fw_hook, fw_name, rule_id, ip_name)
 
 @register_filter('nft_default_rule')
 def nft_default_rule(fw_conf, fw_name, ipv6=False):
