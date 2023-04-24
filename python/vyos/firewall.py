@@ -41,14 +41,27 @@ def fqdn_config_parse(firewall):
     firewall['ip6_fqdn'] = {}
 
     for domain, path in dict_search_recursive(firewall, 'fqdn'):
-        fw_name = path[1] # name/ipv6-name
-        rule = path[3] # rule id
-        suffix = path[4][0] # source/destination (1 char)
-        set_name = f'{fw_name}_{rule}_{suffix}'
+        #fw_name = path[1] # name/ipv6-name
+        #rule = path[3] # rule id0
+        #suffix = path[4][0] # source/destination (1 char)
+        #set_name = f'{fw_name}_{rule}_{suffix}'
+        hook_name = path[1] # name/ipv6-name/forward/input/output...
+        priority = path[2]  # filter
+
+        fw_name = path[2] # name/ipv6-name
+        rule = path[4] # rule id0
+        suffix = path[5][0] # source/destination (1 char)
+        set_name = f'{hook_name}_{priority}_{rule}_{suffix}'    # forward_filter_10_d
             
-        if path[0] == 'name':
+        #if path[0] == 'name':
+        #    firewall['ip_fqdn'][set_name] = domain
+        #elif path[0] == 'ipv6_name':
+        #    firewall['ip6_fqdn'][set_name] = domain
+        if (path[0] == 'ip') and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'name' ):
             firewall['ip_fqdn'][set_name] = domain
-        elif path[0] == 'ipv6_name':
+        elif (path[0] == 'ipv6') and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'ipv6_name' ):
+            if path[1] == 'ipv6_name':
+                set_name = f'name6_{priority}_{rule}_{suffix}'
             firewall['ip6_fqdn'][set_name] = domain
 
 def fqdn_resolve(fqdn, ipv6=False):
@@ -129,16 +142,34 @@ def parse_rule(rule_conf, hook, fw_name, rule_id, ip_name):
 
             if 'fqdn' in side_conf:
                 fqdn = side_conf['fqdn']
+                hook_name = ''
                 operator = ''
                 if fqdn[0] == '!':
                     operator = '!='
-                output.append(f'{ip_name} {prefix}addr {operator} @FQDN_{fw_name}_{rule_id}_{prefix}')
+                if hook == 'FWD':
+                    hook_name = 'forward'
+                if hook == 'INP':
+                    hook_name = 'input'
+                if hook == 'OUT':
+                    hook_name = 'output'
+                if hook == 'NAM':
+                    hook_name = f'name{def_suffix}'
+                output.append(f'{ip_name} {prefix}addr {operator} @FQDN_{hook_name}_{fw_name}_{rule_id}_{prefix}')
 
             if dict_search_args(side_conf, 'geoip', 'country_code'):
                 operator = ''
+                hook_name = ''
                 if dict_search_args(side_conf, 'geoip', 'inverse_match') != None:
                     operator = '!='
-                output.append(f'{ip_name} {prefix}addr {operator} @GEOIP_CC_{fw_name}_{rule_id}')
+                if hook == 'FWD':
+                    hook_name = 'forward'
+                if hook == 'INP':
+                    hook_name = 'input'
+                if hook == 'OUT':
+                    hook_name = 'output'
+                if hook == 'NAM':
+                    hook_name = f'name{def_suffix}'
+                output.append(f'{ip_name} {prefix}addr {operator} @GEOIP_CC_{hook_name}_{fw_name}_{rule_id}')
 
             if 'mac_address' in side_conf:
                 suffix = side_conf["mac_address"]
@@ -493,13 +524,21 @@ def geoip_update(firewall, force=False):
 
         # Map country codes to set names
         for codes, path in dict_search_recursive(firewall, 'country_code'):
-            set_name = f'GEOIP_CC_{path[1]}_{path[3]}'
-            if path[0] == 'name':
-                for code in codes:
-                    ipv4_codes.setdefault(code, []).append(set_name)
-            elif path[0] == 'ipv6_name':
-                for code in codes:
-                    ipv6_codes.setdefault(code, []).append(set_name)
+            set_name = f'GEOIP_CC_{path[1]}_{path[2]}_{path[4]}'
+            if path[1] == 'ipv6_name':
+                set_name = f'GEOIP_CC_name6_{path[2]}_{path[4]}'
+    
+                #if path[1] == 'name':
+                #    for code in codes:
+                #        ipv4_codes.setdefault(code, []).append(set_name)
+                if ( path[0] == 'ip' ) and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'name' ):
+                    for code in codes:
+                        ipv4_codes.setdefault(code, []).append(set_name)
+    
+                #elif path[1] == 'ipv6_name':
+                elif ( path[0] == 'ipv6' ) and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'ipv6_name' ):
+                    for code in codes:
+                        ipv6_codes.setdefault(code, []).append(set_name)
 
         if not ipv4_codes and not ipv6_codes:
             if force:

@@ -97,19 +97,26 @@ def geoip_updated(conf, firewall):
     updated = False
 
     for key, path in dict_search_recursive(firewall, 'geoip'):
-        set_name = f'GEOIP_CC_{path[1]}_{path[3]}'
-        if path[0] == 'name':
+        set_name = f'GEOIP_CC_{path[1]}_{path[2]}_{path[4]}'
+        if path[1] == 'ipv6_name':
+            set_name = f'GEOIP_CC_name6_{path[2]}_{path[4]}'
+        
+        print("############## set_name", set_name)
+        print("############## path", path)
+        if (path[0] == 'ip') and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'name' ):
             out['name'].append(set_name)
-        elif path[0] == 'ipv6_name':
+        #if path[1] == 'forward':
+        #    out['name'].append(set_name)
+        elif (path[0] == 'ipv6') and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'ipv6_name' ):
             out['ipv6_name'].append(set_name)
         updated = True
 
     if 'delete' in node_diff:
         for key, path in dict_search_recursive(node_diff['delete'], 'geoip'):
-            set_name = f'GEOIP_CC_{path[1]}_{path[3]}'
-            if path[0] == 'name':
+            set_name = f'GEOIP_CC_{path[2]}_{path[4]}'
+            if path[1] == 'name':
                 out['deleted_name'].append(set_name)
-            elif path[0] == 'ipv6-name':
+            elif path[1] == 'ipv6-name':
                 out['deleted_ipv6_name'].append(set_name)
             updated = True
 
