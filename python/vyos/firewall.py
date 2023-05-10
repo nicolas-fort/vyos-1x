@@ -379,7 +379,9 @@ def parse_rule(rule_conf, hook, fw_name, rule_id, ip_name):
         output.append(parse_policy_set(rule_conf['set'], def_suffix))
 
     if 'action' in rule_conf:
-        output.append(nft_action(rule_conf['action']))
+        # Change action=return to action=action
+        # #output.append(nft_action(rule_conf['action']))
+        output.append(f'{rule_conf["action"]}')
         if 'jump' in rule_conf['action']:
             target = rule_conf['jump_target']
             output.append(f'NAME{def_suffix}_{target}')

@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+#
+# Copyright (C) 2023 VyOS maintainers and contributors
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 2 or later as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# T5160: Firewall re-writing
+
+#  cli changes from:       
+#  set firewall name <name> ...
+#  set firewall ipv6-name <name> ...
+#  To
+#  set firewall ip name <name> 
+#  set firewall ipv6 ipv6-name <name> 
+
+## Also from 'firewall interface' removed.
+## in and out:
+    # set firewall interface <iface> [in|out] [name | ipv6-name] <name>
+    # To
+    # set firewall [ip | ipv6] forward filter rule <5,10,15,...> [inbound-interface | outboubd-interface] interface-name <iface>
+    # set firewall [ip | ipv6] forward filter rule <5,10,15,...> action jump
+    # set firewall [ip | ipv6] forward filter rule <5,10,15,...> jump-target <name>
+## local:
+    # set firewall interface <iface> local [name | ipv6-name] <name>
+    # To
+    # set firewall [ip | ipv6] input filter rule <5,10,15,...> inbound-interface interface-name <iface>
+    # set firewall [ip | ipv6] input filter rule <5,10,15,...> action jump
+    # set firewall [ip | ipv6] input filter rule <5,10,15,...> jump-target <name>
+
+import re
+
+from sys import argv
+from sys import exit
+
+from vyos.configtree import ConfigTree
+from vyos.ifconfig import Section
+
+if (len(argv) < 1):
+    print("Must specify file name!")
+    exit(1)
+
+file_name = argv[1]
+
+with open(file_name, 'r') as f:
+    config_file = f.read()
+
+base = ['firewall']
+config = ConfigTree(config_file)
+
+if not config.exists(base):
+    # Nothing to do
+    exit(0)
+
+### Migration of state policies
+if config.exists(base + ['state-policy']):
+    for family in ['ip', 'ipv6']:
+        for hook in ['forward', 'input', 'output']:
+            for priority in ['filter']:
+                position = 1
+                for state in config.list_nodes(base + ['state-policy']):
+                    action = config.return_value(base + ['state-policy', state, 'action'])
+                    config.set(base + [family, hook, priority, 'rule'])
+                    config.set_tag(base + [family, hook, priority, 'rule'])
+                    config.set(base + [family, hook, priority, 'rule', position, 'state', state], value='enable')
+                    config.set(base + [family, hook, priority, 'rule', position, 'action'], value=action)
+                    position = position + 1
+    config.delete(base + ['state-policy'])
+############
+
+## migration of global options:
+for option in ['all-ping', 'broadcast-ping', 'config-trap', 'ip-src-route', 'ipv6-receive-redirects', 'ipv6-src-route', 'log-martians',
+                'receive-redirects', 'resolver-cache', 'resolver-internal', 'send-redirects', 'source-validation', 'syn-cookies', 'twa-hazards-protection']:
+    if config.exists(base + [option]):
+        val = config.return_value(base + [option])
+        config.set(base + ['global-options', option], value=val)
+        config.delete(base + [option])
+
+### Migration of firewall name and ipv6-name
+if config.exists(base + ['name']):
+    config.set(['firewall', 'ip', 'name'])
+    config.set_tag(['firewall', 'ip', 'name'])
+
+    for ipv4name in config.list_nodes(base + ['name']):
+        config.copy(base + ['name', ipv4name], base + ['ip', 'name', ipv4name])
+    config.delete(base + ['name'])
+
+if config.exists(base + ['ipv6-name']):
+    config.set(['firewall', 'ipv6', 'ipv6-name'])
+    config.set_tag(['firewall', 'ipv6', 'ipv6-name'])
+
+    for ipv6name in config.list_nodes(base + ['ipv6-name']):
+        config.copy(base + ['ipv6-name', ipv6name], base + ['ipv6', 'ipv6-name', ipv6name])
+    config.delete(base + ['ipv6-name'])
+
+### Migration of firewall interface
+if config.exists(base + ['interface']):
+    fwd_ipv4_rule = 5
+    inp_ipv4_rule = 5
+    fwd_ipv6_rule = 5
+    inp_ipv6_rule = 5
+    for iface in config.list_nodes(base + ['interface']):
+        for direction in ['in', 'out', 'local']:
+            if config.exists(base + ['interface', iface, direction]):
+                if config.exists(base + ['interface', iface, direction, 'name']):
+                    target = config.return_value(base + ['interface', iface, direction, 'name'])
+                    if direction == 'in':
+                        new_base = base + ['ip', 'forward', 'filter', 'rule']
+                        config.set(new_base)
+                        config.set_tag(new_base)
+                        config.set(new_base + [fwd_ipv4_rule, 'inbound-interface', 'interface-name'], value=iface)
+                        config.set(new_base + [fwd_ipv4_rule, 'action'], value='jump')
+                        config.set(new_base + [fwd_ipv4_rule, 'jump-target'], value=target)
+                        fwd_ipv4_rule = fwd_ipv4_rule + 5
+                    elif direction == 'out':
+                        new_base = base + ['ip', 'forward', 'filter', 'rule']
+                        config.set(new_base)
+                        config.set_tag(new_base)
+                        config.set(new_base + [fwd_ipv4_rule, 'outbound-interface', 'interface-name'], value=iface)
+                        config.set(new_base + [fwd_ipv4_rule, 'action'], value='jump')
+                        config.set(new_base + [fwd_ipv4_rule, 'jump-target'], value=target)
+                        fwd_ipv4_rule = fwd_ipv4_rule + 5
+                    else:
+                        new_base = base + ['ip', 'input', 'filter', 'rule']
+                        config.set(new_base)
+                        config.set_tag(new_base)
+                        config.set(new_base + [inp_ipv4_rule, 'inbound-interface', 'interface-name'], value=iface)
+                        config.set(new_base + [inp_ipv4_rule, 'action'], value='jump')
+                        config.set(new_base + [inp_ipv4_rule, 'jump-target'], value=target)
+                        inp_ipv4_rule = inp_ipv4_rule + 5
+
+                if config.exists(base + ['interface', iface, direction, 'ipv6-name']):
+                    target = config.return_value(base + ['interface', iface, direction, 'ipv6-name'])
+                    if direction == 'in':
+                        new_base = base + ['ipv6', 'forward', 'filter', 'rule']
+                        config.set(new_base)
+                        config.set_tag(new_base)
+                        config.set(new_base + [fwd_ipv6_rule, 'inbound-interface', 'interface-name'], value=iface)
+                        config.set(new_base + [fwd_ipv6_rule, 'action'], value='jump')
+                        config.set(new_base + [fwd_ipv6_rule, 'jump-target'], value=target)
+                        fwd_ipv6_rule = fwd_ipv6_rule + 5
+                    elif direction == 'out':
+                        new_base = base + ['ipv6', 'forward', 'filter', 'rule']
+                        config.set(new_base)
+                        config.set_tag(new_base)
+                        config.set(new_base + [fwd_ipv6_rule, 'outbound-interface', 'interface-name'], value=iface)
+                        config.set(new_base + [fwd_ipv6_rule, 'action'], value='jump')
+                        config.set(new_base + [fwd_ipv6_rule, 'jump-target'], value=target)
+                        fwd_ipv6_rule = fwd_ipv6_rule + 5
+                    else:
+                        new_base = base + ['ipv6', 'input', 'filter', 'rule']
+                        config.set(new_base)
+                        config.set_tag(new_base)
+                        config.set(new_base + [inp_ipv6_rule, 'inbound-interface', 'interface-name'], value=iface)
+                        config.set(new_base + [inp_ipv6_rule, 'action'], value='jump')
+                        config.set(new_base + [inp_ipv6_rule, 'jump-target'], value=target)
+                        inp_ipv6_rule = inp_ipv6_rule + 5
+
+    config.delete(base + ['interface'])
+
+### Migration of zones config
+if config.exists(base + ['zone']):
+    inp_ipv4_rule = 101
+    inp_ipv6_rule = 101
+    fwd_ipv4_rule = 101
+    fwd_ipv6_rule = 101
+    out_ipv4_rule = 101
+    out_ipv6_rule = 101
+    for zone in config.list_nodes(base + ['zone']):
+        if config.exists(base + ['zone', zone, 'local-zone']):
+            for from_zone in config.list_nodes(base + ['zone', zone, 'from']):
+                # Local zone -> Input configuration
+                for iface in config.return_values(base + ['zone', from_zone, 'interface']):
+                    if config.exists(base + ['zone', zone, 'from', from_zone, 'firewall', 'name']):
+                        # ipv4 input ruleset
+                        target_ipv4_chain = config.return_value(base + ['zone', zone, 'from', from_zone, 'firewall', 'name'])
+                        config.set(base + ['ip', 'input', 'filter', 'rule'])
+                        config.set_tag(base + ['ip', 'input', 'filter', 'rule'])
+                        config.set(base + ['ip', 'input', 'filter', 'rule', inp_ipv4_rule, 'inbound-interface', 'interface-name'], value=iface)
+                        config.set(base + ['ip', 'input', 'filter', 'rule', inp_ipv4_rule, 'action'], value='jump')
+                        config.set(base + ['ip', 'input', 'filter', 'rule', inp_ipv4_rule, 'jump-target'], value=target_ipv4_chain)
+                        inp_ipv4_rule = inp_ipv4_rule + 5
+                    if config.exists(base + ['zone', zone, 'from', from_zone, 'firewall', 'ipv6-name']):
+                        # ipv6 input ruleset
+                        target_ipv6_chain = config.return_value(base + ['zone', zone, 'from', from_zone, 'firewall', 'ipv6-name'])
+                        config.set(base + ['ipv6', 'input', 'filter', 'rule'])
+                        config.set_tag(base + ['ipv6', 'input', 'filter', 'rule'])
+                        config.set(base + ['ipv6', 'input', 'filter', 'rule', inp_ipv6_rule, 'inbound-interface', 'interface-name'], value=iface)
+                        config.set(base + ['ipv6', 'input', 'filter', 'rule', inp_ipv6_rule, 'action'], value='jump')
+                        config.set(base + ['ipv6', 'input', 'filter', 'rule', inp_ipv6_rule, 'jump-target'], value=target_ipv6_chain)
+                        inp_ipv6_rule = inp_ipv6_rule + 5
+        else:
+        # It's not a local zone
+            for from_zone in config.list_nodes(base + ['zone', zone, 'from']):
+            # Parse per interface
+                for oiface in config.return_values(base + ['zone', zone, 'interface']):
+                    if config.exists(base + ['zone', zone, 'from', from_zone, 'firewall', 'name']):
+                        target_ipv4_chain = config.return_value(base + ['zone', zone, 'from', from_zone, 'firewall', 'name'])
+                        if config.exists(base + ['zone', from_zone, 'local-zone']):
+                            #for oiface in config.return_values(base + ['zone', zone, 'interface']):
+                            config.set(base + ['ip', 'output', 'filter', 'rule'])
+                            config.set_tag(base + ['ip', 'output', 'filter', 'rule'])
+                            config.set(base + ['ip', 'output', 'filter', 'rule', out_ipv4_rule, 'outbound-interface', 'interface-name'], value=oiface)
+                            config.set(base + ['ip', 'output', 'filter', 'rule', out_ipv4_rule, 'action'], value='jump')
+                            config.set(base + ['ip', 'output', 'filter', 'rule', out_ipv4_rule, 'jump-target'], value=target_ipv4_chain)
+                            out_ipv4_rule = out_ipv4_rule + 5
+                        else:
+                            for iiface in config.return_values(base + ['zone', from_zone, 'interface']):
+                                config.set(base + ['ip', 'forward', 'filter', 'rule'])
+                                config.set_tag(base + ['ip', 'forward', 'filter', 'rule'])                                
+                                config.set(base + ['ip', 'forward', 'filter', 'rule', fwd_ipv4_rule, 'outbound-interface', 'interface-name'], value=oiface)
+                                config.set(base + ['ip', 'forward', 'filter', 'rule', fwd_ipv4_rule, 'inbound-interface', 'interface-name'], value=iiface)
+                                config.set(base + ['ip', 'forward', 'filter', 'rule', fwd_ipv4_rule, 'action'], value='jump')
+                                config.set(base + ['ip', 'forward', 'filter', 'rule', fwd_ipv4_rule, 'jump-target'], value=target_ipv4_chain)
+                                fwd_ipv4_rule = fwd_ipv4_rule + 5
+                    if config.exists(base + ['zone', zone, 'from', from_zone, 'firewall', 'ipv6-name']):
+                        target_ipv6_chain = config.return_value(base + ['zone', zone, 'from', from_zone, 'firewall', 'ipv6-name'])
+                        if config.exists(base + ['zone', from_zone, 'local-zone']):
+                            config.set(base + ['ipv6', 'output', 'filter', 'rule'])
+                            config.set_tag(base + ['ipv6', 'output', 'filter', 'rule'])
+                            config.set(base + ['ipv6', 'output', 'filter', 'rule', out_ipv6_rule, 'outbound-interface', 'interface-name'], value=oiface)
+                            config.set(base + ['ipv6', 'output', 'filter', 'rule', out_ipv6_rule, 'action'], value='jump')
+                            config.set(base + ['ipv6', 'output', 'filter', 'rule', out_ipv6_rule, 'jump-target'], value=target_ipv6_chain)
+                            out_ipv6_rule = out_ipv6_rule + 5
+                        else:
+                            for iiface in config.return_values(base + ['zone', from_zone, 'interface']):
+                                config.set(base + ['ipv6', 'forward', 'filter', 'rule'])
+                                config.set_tag(base + ['ipv6', 'forward', 'filter', 'rule'])
+                                config.set(base + ['ipv6', 'forward', 'filter', 'rule', fwd_ipv6_rule, 'outbound-interface', 'interface-name'], value=oiface)
+                                config.set(base + ['ipv6', 'forward', 'filter', 'rule', fwd_ipv6_rule, 'inbound-interface', 'interface-name'], value=iiface)
+                                config.set(base + ['ipv6', 'forward', 'filter', 'rule', fwd_ipv6_rule, 'action'], value='jump')
+                                config.set(base + ['ipv6', 'forward', 'filter', 'rule', fwd_ipv6_rule, 'jump-target'], value=target_ipv6_chain)
+                                fwd_ipv6_rule = fwd_ipv6_rule + 5
+
+    config.delete(base + ['zone'])
+
+try:
+    with open(file_name, 'w') as f:
+        f.write(config.to_string())
+except OSError as e:
+    print("Failed to save the modified config: {}".format(e))
+    exit(1)

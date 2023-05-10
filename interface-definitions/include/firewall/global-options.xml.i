@@ -1,7 +1,7 @@
 <!-- include start from firewall/global-options.xml.i -->
-<node name="global-options--XX">
+<node name="global-options">
   <properties>
-    <help>Global Options - To be removed</help>
+    <help>Global Options</help>
   </properties>
   <children>
     <leafNode name="all-ping">

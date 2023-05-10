@@ -3,7 +3,7 @@
   <properties>
     <help>Local IPv4 firewall ruleset name for interface</help>
     <completionHelp>
-      <path>firewall name</path>
+      <path>firewall ip name</path>
     </completionHelp>
   </properties>
 </leafNode>
@@ -11,7 +11,7 @@
   <properties>
     <help>Local IPv6 firewall ruleset name for interface</help>
     <completionHelp>
-      <path>firewall ipv6-name</path>
+      <path>firewall ipv6 ipv6-name</path>
     </completionHelp>
   </properties>
 </leafNode>

@@ -9,17 +9,8 @@
         <help>IPv4 firewall output filter</help>
       </properties>
       <children>
-        #include <include/firewall/default-action.xml.i>
-        #include <include/firewall/enable-default-log.xml.i>
+        #include <include/firewall/default-action-base-chains.xml.i>
         #include <include/generic-description.xml.i>
-        <leafNode name="default-jump-target">
-          <properties>
-            <help>Set jump target. Action jump must be defined in default-action to use this setting</help>
-            <completionHelp>
-              <path>firewall ip name</path>
-            </completionHelp>
-          </properties>
-        </leafNode>
         <tagNode name="rule">
           <properties>
             <help>IP Firewall output filter rule number</help>

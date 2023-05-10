@@ -101,8 +101,8 @@ def geoip_updated(conf, firewall):
         if path[1] == 'ipv6_name':
             set_name = f'GEOIP_CC_name6_{path[2]}_{path[4]}'
         
-        print("############## set_name", set_name)
-        print("############## path", path)
+        #print("############## set_name", set_name)
+        #print("############## path", path)
         if (path[0] == 'ip') and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'name' ):
             out['name'].append(set_name)
         #if path[1] == 'forward':
@@ -139,10 +139,10 @@ def get_config(config=None):
     # default options which we need to update into the dictionary retrived.
     # XXX: T2665: we currently have no nice way for defaults under tag
     # nodes, thus we load the defaults "by hand"
-    print("FLAG-01 - just firewall",firewall)
+    #print("FLAG-01 - just firewall",firewall)
     default_values = defaults(base)
-    print("FALG-02 - DEFAULT_VALUES")
-    print(default_values)
+    #print("FALG-02 - DEFAULT_VALUES")
+    #print(default_values)
 
 # WORKING - AAA
 #    for tmp in ['name', 'ipv6_name']:
@@ -163,13 +163,13 @@ def get_config(config=None):
 #        if tmp in default_values['ipv6']:
 #            del default_values['ipv6'][tmp]
 
-    print("FLAG-03 - Post del tmp", default_values)
+    #print("FLAG-03 - Post del tmp", default_values)
     if 'zone' in default_values:
         del default_values['zone']
 
     firewall = dict_merge(default_values, firewall)
-    print("FLAG-04 - after dict merge")
-    print(firewall)
+    #print("FLAG-04 - after dict merge")
+    #print(firewall)
 
     # Merge in defaults for IPv4 ruleset
 # WORKING - AAA
@@ -187,8 +187,8 @@ def get_config(config=None):
                     firewall['ip'][hook][priority] = dict_merge(default_values,
                                                         firewall['ip'][hook][priority])
 
-    print("FLAG-05 - after mergr defaults")
-    print(firewall)
+    #print("FLAG-05 - after mergr defaults")
+    #print(firewall)
 
     # Merge in defaults for IPv6 ruleset
     if 'ipv6_name' in firewall['ipv6']:
@@ -215,7 +215,8 @@ def get_config(config=None):
         # Update nat and policy-route as firewall groups were updated
         set_dependents('group_resync', conf)
 
-    if 'config_trap' in firewall and firewall['config_trap'] == 'enable':
+    #if 'config_trap' in firewall and firewall['config_trap'] == 'enable':
+    if 'config_trap' in firewall and firewall['global_options']['config_trap'] == 'enable':
         diff = get_config_diff(conf)
         firewall['trap_diff'] = diff.get_child_nodes_diff_str(base)
         firewall['trap_targets'] = conf.get_config_dict(['service', 'snmp', 'trap-target'],
@@ -227,8 +228,8 @@ def get_config(config=None):
     fqdn_config_parse(firewall)
 
     ## FORT
-    print("SRC GET CONFIG")
-    print(firewall)
+    #print("SRC GET CONFIG")
+    #print(firewall)
 
     return firewall
 
@@ -247,7 +248,7 @@ def verify_rule(firewall, rule_conf, ipv6):
             if target not in dict_search_args(firewall, 'ip', 'name'):
                 raise ConfigError(f'Invalid jump-target. Firewall name {target} does not exist on the system')
         else:
-            if target not in dict_search_args(firewall, 'ip', 'ipv6_name'):
+            if target not in dict_search_args(firewall, 'ipv6', 'ipv6_name'):
                 raise ConfigError(f'Invalid jump-target. Firewall ipv6-name {target} does not exist on the system')
 
     if 'queue_options' in rule_conf:
@@ -465,11 +466,11 @@ def verify(firewall):
 
                 if 'firewall' in intra_zone:
                     v4_name = dict_search_args(intra_zone, 'firewall', 'name')
-                    if v4_name and not dict_search_args(firewall, 'name', v4_name):
+                    if v4_name and not dict_search_args(firewall, 'ip', 'name', v4_name):
                         raise ConfigError(f'Firewall name "{v4_name}" does not exist')
 
                     v6_name = dict_search_args(intra_zone, 'firewall', 'ipv6_name')
-                    if v6_name and not dict_search_args(firewall, 'ipv6_name', v6_name):
+                    if v6_name and not dict_search_args(firewall, 'ipv6', 'ipv6_name', v6_name):
                         raise ConfigError(f'Firewall ipv6-name "{v6_name}" does not exist')
 
                     if not v4_name and not v6_name:
@@ -481,11 +482,11 @@ def verify(firewall):
                         raise ConfigError(f'Zone "{zone}" refers to a non-existent or deleted zone "{from_zone}"')
 
                     v4_name = dict_search_args(from_conf, 'firewall', 'name')
-                    if v4_name and not dict_search_args(firewall, 'name', v4_name):
+                    if v4_name and not dict_search_args(firewall, 'ip', 'name', v4_name):
                         raise ConfigError(f'Firewall name "{v4_name}" does not exist')
 
                     v6_name = dict_search_args(from_conf, 'firewall', 'ipv6_name')
-                    if v6_name and not dict_search_args(firewall, 'ipv6_name', v6_name):
+                    if v6_name and not dict_search_args(firewall, 'ipv6', 'ipv6_name', v6_name):
                         raise ConfigError(f'Firewall ipv6-name "{v6_name}" does not exist')
 
     return None
@@ -515,8 +516,10 @@ def apply_sysfs(firewall):
         paths = glob(conf['sysfs'])
         value = None
 
-        if name in firewall:
-            conf_value = firewall[name]
+        if name in firewall['global_options']:
+            #print("X*X*X*X*X*: if matched global_options")
+            conf_value = firewall['global_options'][name]
+            #print("X*X*X*X*X*: conf_value ==> ",conf_value)
 
             if conf_value in conf:
                 value = conf[conf_value]
@@ -534,7 +537,7 @@ def post_apply_trap(firewall):
     if 'first_install' in firewall:
         return None
 
-    if 'config_trap' not in firewall or firewall['config_trap'] != 'enable':
+    if 'config_trap' not in firewall['global_options'] or firewall['global_options']['config_trap'] != 'enable':
         return None
 
     if not process_named_running('snmpd'):
