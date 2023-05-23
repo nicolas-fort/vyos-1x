@@ -100,13 +100,9 @@ def geoip_updated(conf, firewall):
         set_name = f'GEOIP_CC_{path[1]}_{path[2]}_{path[4]}'
         if path[1] == 'ipv6_name':
             set_name = f'GEOIP_CC_name6_{path[2]}_{path[4]}'
-        
-        #print("############## set_name", set_name)
-        #print("############## path", path)
+
         if (path[0] == 'ip') and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'name' ):
             out['name'].append(set_name)
-        #if path[1] == 'forward':
-        #    out['name'].append(set_name)
         elif (path[0] == 'ipv6') and ( path[1] == 'forward' or path[1] == 'input' or path[1] == 'output' or path[1] == 'ipv6_name' ):
             out['ipv6_name'].append(set_name)
         updated = True
@@ -139,46 +135,24 @@ def get_config(config=None):
     # default options which we need to update into the dictionary retrived.
     # XXX: T2665: we currently have no nice way for defaults under tag
     # nodes, thus we load the defaults "by hand"
-    #print("FLAG-01 - just firewall",firewall)
     default_values = defaults(base)
-    #print("FALG-02 - DEFAULT_VALUES")
-    #print(default_values)
 
-# WORKING - AAA
-#    for tmp in ['name', 'ipv6_name']:
-#        if tmp in default_values['ip']:
-#            del default_values['ip'][tmp]
-
-# New Test
     for family in ['ip', 'ipv6']:
         for tmp in ['name', 'ipv6_name', 'forward', 'input', 'output', 'prerouting']:
             if tmp in default_values[family]:
                 del default_values[family][tmp]
 
-#    for tmp in ['name', 'forward', 'input', 'output', 'prerouting']:
-#        if tmp in default_values['ip']:
-#            del default_values['ip'][tmp]
-#    
-#    for tmp in ['ipv6_name', 'forward', 'input', 'output', 'prerouting']:
-#        if tmp in default_values['ipv6']:
-#            del default_values['ipv6'][tmp]
-
-    #print("FLAG-03 - Post del tmp", default_values)
     if 'zone' in default_values:
         del default_values['zone']
 
     firewall = dict_merge(default_values, firewall)
-    #print("FLAG-04 - after dict merge")
-    #print(firewall)
 
     # Merge in defaults for IPv4 ruleset
-# WORKING - AAA
     if 'name' in firewall['ip']:
         default_values = defaults(base + ['ip'] + ['name'])
         for name in firewall['ip']['name']:
             firewall['ip']['name'][name] = dict_merge(default_values,
                                                 firewall['ip']['name'][name])
-
     for hook in ['forward', 'input', 'output', 'prerouting']:
         if hook in firewall['ip']:
             for priority in ['filter', 'mangle', 'raw']:
@@ -187,16 +161,12 @@ def get_config(config=None):
                     firewall['ip'][hook][priority] = dict_merge(default_values,
                                                         firewall['ip'][hook][priority])
 
-    #print("FLAG-05 - after mergr defaults")
-    #print(firewall)
-
     # Merge in defaults for IPv6 ruleset
     if 'ipv6_name' in firewall['ipv6']:
         default_values = defaults(base + ['ipv6'] + ['ipv6-name'])
         for ipv6_name in firewall['ipv6']['ipv6_name']:
             firewall['ipv6']['ipv6_name'][ipv6_name] = dict_merge(default_values,
                                                           firewall['ipv6']['ipv6_name'][ipv6_name])
-
     for hook in ['forward', 'input', 'output', 'prerouting']:
         if hook in firewall['ipv6']:
             for priority in ['filter', 'mangle', 'raw']:
@@ -226,10 +196,6 @@ def get_config(config=None):
     firewall['geoip_updated'] = geoip_updated(conf, firewall)
 
     fqdn_config_parse(firewall)
-
-    ## FORT
-    #print("SRC GET CONFIG")
-    #print(firewall)
 
     return firewall
 
@@ -377,7 +343,6 @@ def verify(firewall):
                 for group_name, group in groups.items():
                     verify_nested_group(group_name, group, groups, [])
 
-    #for name in ['name']:#,'forward','input','output']:
     if 'ip' in firewall:
         for name in ['name','forward','input','output']:
             if name in firewall['ip']:
@@ -418,76 +383,61 @@ def verify(firewall):
                         for rule_id, rule_conf in name_conf['rule'].items():
                             verify_rule(firewall, rule_conf, True)
 
-#    if 'interface' in firewall:
-#        for ifname, if_firewall in firewall['interface'].items():
-#            # verify ifname needs to be disabled, dynamic devices come up later
-#            # verify_interface_exists(ifname)
+#    local_zone = False
+#    zone_interfaces = []
 #
-#            for direction in ['in', 'out', 'local']:
-#                name = dict_search_args(if_firewall, direction, 'name')
-#                ipv6_name = dict_search_args(if_firewall, direction, 'ipv6_name')
+#    if 'zone' in firewall:
+#        for zone, zone_conf in firewall['zone'].items():
+#            if 'local_zone' not in zone_conf and 'interface' not in zone_conf:
+#                raise ConfigError(f'Zone "{zone}" has no interfaces and is not the local zone')
 #
-#                if name and dict_search_args(firewall, 'name', name) == None:
-#                    raise ConfigError(f'Invalid firewall name "{name}" referenced on interface {ifname}')
+#            if 'local_zone' in zone_conf:
+#                if local_zone:
+#                    raise ConfigError('There cannot be multiple local zones')
+#                if 'interface' in zone_conf:
+#                    raise ConfigError('Local zone cannot have interfaces assigned')
+#                if 'intra_zone_filtering' in zone_conf:
+#                    raise ConfigError('Local zone cannot use intra-zone-filtering')
+#                local_zone = True
 #
-#                if ipv6_name and dict_search_args(firewall, 'ipv6_name', ipv6_name) == None:
-#                    raise ConfigError(f'Invalid firewall ipv6-name "{ipv6_name}" referenced on interface {ifname}')
-
-    local_zone = False
-    zone_interfaces = []
-
-    if 'zone' in firewall:
-        for zone, zone_conf in firewall['zone'].items():
-            if 'local_zone' not in zone_conf and 'interface' not in zone_conf:
-                raise ConfigError(f'Zone "{zone}" has no interfaces and is not the local zone')
-
-            if 'local_zone' in zone_conf:
-                if local_zone:
-                    raise ConfigError('There cannot be multiple local zones')
-                if 'interface' in zone_conf:
-                    raise ConfigError('Local zone cannot have interfaces assigned')
-                if 'intra_zone_filtering' in zone_conf:
-                    raise ConfigError('Local zone cannot use intra-zone-filtering')
-                local_zone = True
-
-            if 'interface' in zone_conf:
-                found_duplicates = [intf for intf in zone_conf['interface'] if intf in zone_interfaces]
-
-                if found_duplicates:
-                    raise ConfigError(f'Interfaces cannot be assigned to multiple zones')
-
-                zone_interfaces += zone_conf['interface']
-
-            if 'intra_zone_filtering' in zone_conf:
-                intra_zone = zone_conf['intra_zone_filtering']
-
-                if len(intra_zone) > 1:
-                    raise ConfigError('Only one intra-zone-filtering action must be specified')
-
-                if 'firewall' in intra_zone:
-                    v4_name = dict_search_args(intra_zone, 'firewall', 'name')
-                    if v4_name and not dict_search_args(firewall, 'ip', 'name', v4_name):
-                        raise ConfigError(f'Firewall name "{v4_name}" does not exist')
-
-                    v6_name = dict_search_args(intra_zone, 'firewall', 'ipv6_name')
-                    if v6_name and not dict_search_args(firewall, 'ipv6', 'ipv6_name', v6_name):
-                        raise ConfigError(f'Firewall ipv6-name "{v6_name}" does not exist')
-
-                    if not v4_name and not v6_name:
-                        raise ConfigError('No firewall names specified for intra-zone-filtering')
-
-            if 'from' in zone_conf:
-                for from_zone, from_conf in zone_conf['from'].items():
-                    if from_zone not in firewall['zone']:
-                        raise ConfigError(f'Zone "{zone}" refers to a non-existent or deleted zone "{from_zone}"')
-
-                    v4_name = dict_search_args(from_conf, 'firewall', 'name')
-                    if v4_name and not dict_search_args(firewall, 'ip', 'name', v4_name):
-                        raise ConfigError(f'Firewall name "{v4_name}" does not exist')
-
-                    v6_name = dict_search_args(from_conf, 'firewall', 'ipv6_name')
-                    if v6_name and not dict_search_args(firewall, 'ipv6', 'ipv6_name', v6_name):
-                        raise ConfigError(f'Firewall ipv6-name "{v6_name}" does not exist')
+#            if 'interface' in zone_conf:
+#                found_duplicates = [intf for intf in zone_conf['interface'] if intf in zone_interfaces]
+#
+#                if found_duplicates:
+#                    raise ConfigError(f'Interfaces cannot be assigned to multiple zones')
+#
+#                zone_interfaces += zone_conf['interface']
+#
+#            if 'intra_zone_filtering' in zone_conf:
+#                intra_zone = zone_conf['intra_zone_filtering']
+#
+#                if len(intra_zone) > 1:
+#                    raise ConfigError('Only one intra-zone-filtering action must be specified')
+#
+#                if 'firewall' in intra_zone:
+#                    v4_name = dict_search_args(intra_zone, 'firewall', 'name')
+#                    if v4_name and not dict_search_args(firewall, 'ip', 'name', v4_name):
+#                        raise ConfigError(f'Firewall name "{v4_name}" does not exist')
+#
+#                    v6_name = dict_search_args(intra_zone, 'firewall', 'ipv6_name')
+#                    if v6_name and not dict_search_args(firewall, 'ipv6', 'ipv6_name', v6_name):
+#                        raise ConfigError(f'Firewall ipv6-name "{v6_name}" does not exist')
+#
+#                    if not v4_name and not v6_name:
+#                        raise ConfigError('No firewall names specified for intra-zone-filtering')
+#
+#            if 'from' in zone_conf:
+#                for from_zone, from_conf in zone_conf['from'].items():
+#                    if from_zone not in firewall['zone']:
+#                        raise ConfigError(f'Zone "{zone}" refers to a non-existent or deleted zone "{from_zone}"')
+#
+#                    v4_name = dict_search_args(from_conf, 'firewall', 'name')
+#                    if v4_name and not dict_search_args(firewall, 'ip', 'name', v4_name):
+#                        raise ConfigError(f'Firewall name "{v4_name}" does not exist')
+#
+#                    v6_name = dict_search_args(from_conf, 'firewall', 'ipv6_name')
+#                    if v6_name and not dict_search_args(firewall, 'ipv6', 'ipv6_name', v6_name):
+#                        raise ConfigError(f'Firewall ipv6-name "{v6_name}" does not exist')
 
     return None
 
@@ -495,18 +445,18 @@ def generate(firewall):
     if not os.path.exists(nftables_conf):
         firewall['first_install'] = True
 
-    if 'zone' in firewall:
-        for local_zone, local_zone_conf in firewall['zone'].items():
-            if 'local_zone' not in local_zone_conf:
-                continue
-
-            local_zone_conf['from_local'] = {}
-
-            for zone, zone_conf in firewall['zone'].items():
-                if zone == local_zone or 'from' not in zone_conf:
-                    continue
-                if local_zone in zone_conf['from']:
-                    local_zone_conf['from_local'][zone] = zone_conf['from'][local_zone]
+    #if 'zone' in firewall:
+    #    for local_zone, local_zone_conf in firewall['zone'].items():
+    #        if 'local_zone' not in local_zone_conf:
+    #            continue
+    #
+    #        local_zone_conf['from_local'] = {}
+    #
+    #        for zone, zone_conf in firewall['zone'].items():
+    #            if zone == local_zone or 'from' not in zone_conf:
+    #                continue
+    #            if local_zone in zone_conf['from']:
+    #                local_zone_conf['from_local'][zone] = zone_conf['from'][local_zone]
 
     render(nftables_conf, 'firewall/nftables.j2', firewall)
     return None
@@ -517,10 +467,7 @@ def apply_sysfs(firewall):
         value = None
 
         if name in firewall['global_options']:
-            #print("X*X*X*X*X*: if matched global_options")
             conf_value = firewall['global_options'][name]
-            #print("X*X*X*X*X*: conf_value ==> ",conf_value)
-
             if conf_value in conf:
                 value = conf[conf_value]
             elif conf_value == 'enable':

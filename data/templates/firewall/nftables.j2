@@ -7,7 +7,6 @@
 delete table ip vyos_filter
 {% endif %}
 table ip vyos_filter {
-    # firewall ip forward filter entries
 {% if ip is vyos_defined %}
 {%     if ip.forward is vyos_defined %}
 {%         set ns = namespace(sets=[]) %}
@@ -23,7 +22,6 @@ table ip vyos_filter {
 {%                     endif %}
 {%                 endfor %}
 {%             endif %}
-        # jump VYOS_POST_FW
     }
 {%         endfor %}
 {%         for set_name in ns.sets %}
@@ -49,7 +47,6 @@ table ip vyos_filter {
 {%                     endif %}
 {%                 endfor %}
 {%             endif %}
-        # jump VYOS_POST_FW
     }
 {%         endfor %}
 {%         for set_name in ns.sets %}
@@ -75,7 +72,6 @@ table ip vyos_filter {
 {%                     endif %}
 {%                 endfor %}
 {%             endif %}
-        # jump VYOS_POST_FW
     }
 {%         endfor %}
 {%         for set_name in ns.sets %}
@@ -166,7 +162,6 @@ table ip vyos_filter {
 delete table ip6 vyos_filter
 {% endif %}
 table ip6 vyos_filter {
-    # firewall ipv6 forward filter entries
 {% if ipv6 is vyos_defined %}
 {%     if ipv6.forward is vyos_defined %}
 {%         set ns = namespace(sets=[]) %}
@@ -182,7 +177,6 @@ table ip6 vyos_filter {
 {%                     endif %}
 {%                 endfor %}
 {%             endif %}
-        # jump VYOS_POST_FW
     }
 {%         endfor %}
 {%         for set_name in ns.sets %}
@@ -208,7 +202,6 @@ table ip6 vyos_filter {
 {%                     endif %}
 {%                 endfor %}
 {%             endif %}
-        # jump VYOS_POST_FW
     }
 {%         endfor %}
 {%         for set_name in ns.sets %}
@@ -234,7 +227,6 @@ table ip6 vyos_filter {
 {%                     endif %}
 {%                 endfor %}
 {%             endif %}
-        # jump VYOS_POST_FW
     }
 {%         endfor %}
 {%         for set_name in ns.sets %}
