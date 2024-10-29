@@ -34,6 +34,8 @@ from vyos.utils.dict import dict_search_recursive
 from vyos.utils.process import call
 from vyos.utils.process import cmd
 from vyos.utils.process import rc_cmd
+from vyos.utils.network import get_vrf_members
+from vyos.utils.network import get_interface_vrf
 from vyos import ConfigError
 from vyos import airbag
 from pathlib import Path
@@ -442,6 +444,7 @@ def verify(firewall):
 
     local_zone = False
     zone_interfaces = []
+    zone_vrf = []
 
     if 'zone' in firewall:
         for zone, zone_conf in firewall['zone'].items():
@@ -458,12 +461,23 @@ def verify(firewall):
                 local_zone = True
 
             if 'interface' in zone_conf:
-                found_duplicates = [intf for intf in zone_conf['interface'] if intf in zone_interfaces]
+                if 'name'in zone_conf['interface']:
 
-                if found_duplicates:
-                    raise ConfigError(f'Interfaces cannot be assigned to multiple zones')
+                    for iface in zone_conf['interface']['name']:
 
-                zone_interfaces += zone_conf['interface']
+                        if iface in zone_interfaces:
+                            raise ConfigError(f'Interfaces cannot be assigned to multiple zones')
+
+                        iface_vrf = get_interface_vrf(iface)
+                        if iface_vrf != 'default':
+                            Warning(f"Interface {iface} assigned to zone {zone} is in VRF {iface_vrf}. This might not work as expected.")
+                        zone_interfaces += iface
+
+                if 'vrf' in zone_conf['interface']:
+                    for vrf in zone_conf['interface']['vrf']:
+                        if vrf in zone_vrf:
+                            raise ConfigError(f'VRF cannot be assigned to multiple zones')
+                        zone_vrf += vrf
 
             if 'intra_zone_filtering' in zone_conf:
                 intra_zone = zone_conf['intra_zone_filtering']
@@ -505,6 +519,12 @@ def generate(firewall):
     if 'zone' in firewall:
         for local_zone, local_zone_conf in firewall['zone'].items():
             if 'local_zone' not in local_zone_conf:
+                # Get physical interfaces assigned to the zone if vrf is used:
+                if 'vrf' in local_zone_conf['interface']:
+                    local_zone_conf['vrf_interfaces'] = {}
+                    for vrf_name in local_zone_conf['interface']['vrf']:
+                        local_zone_conf['vrf_interfaces'][vrf_name] = ','.join(get_vrf_members(vrf_name))
+                        #local_zone_conf['interface']['vrf'][vrf_name] = ''.join(get_vrf_members(vrf_name))
                 continue
 
             local_zone_conf['from_local'] = {}

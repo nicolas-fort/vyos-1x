@@ -464,24 +464,39 @@
               </node>
             </children>
           </tagNode>
-          <leafNode name="interface">
+          <node name="interface">
             <properties>
               <help>Interface associated with zone</help>
-              <valueHelp>
-                <format>txt</format>
-                <description>Interface associated with zone</description>
-              </valueHelp>
-              <valueHelp>
-                <format>vrf</format>
-                <description>VRF associated with zone</description>
-              </valueHelp>
-              <completionHelp>
-                <script>${vyos_completion_dir}/list_interfaces</script>
-                <path>vrf name</path>
-              </completionHelp>
-              <multi/>
             </properties>
-          </leafNode>
+            <children>
+              <leafNode name="name">
+                <properties>
+                  <help>Interface associated with zone</help>
+                  <valueHelp>
+                    <format>txt</format>
+                    <description>Interface associated with zone</description>
+                  </valueHelp>
+                  <completionHelp>
+                    <script>${vyos_completion_dir}/list_interfaces</script>
+                  </completionHelp>
+                  <multi/>
+                </properties>
+              </leafNode>
+              <leafNode name="vrf">
+                <properties>
+                  <help>VRF associated with zone</help>
+                  <valueHelp>
+                    <format>vrf</format>
+                    <description>VRF associated with zone</description>
+                  </valueHelp>
+                  <completionHelp>
+                    <path>vrf name</path>
+                  </completionHelp>
+                  <multi/>
+                </properties>
+              </leafNode>
+            </children>
+          </node>
           <node name="intra-zone-filtering">
             <properties>
               <help>Intra-zone filtering</help>
