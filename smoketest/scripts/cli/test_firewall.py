@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (C) 2021-2023 VyOS maintainers and contributors
+# Copyright (C) 2021-2024 VyOS maintainers and contributors
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 or later as
@@ -905,7 +905,7 @@ class TestFirewall(VyOSUnitTestSHIM.TestCase):
     def test_zone_basic(self):
         self.cli_set(['firewall', 'ipv4', 'name', 'smoketest', 'default-action', 'drop'])
         self.cli_set(['firewall', 'ipv6', 'name', 'smoketestv6', 'default-action', 'drop'])
-        self.cli_set(['firewall', 'zone', 'smoketest-eth0', 'interface', 'name', 'eth0'])
+        self.cli_set(['firewall', 'zone', 'smoketest-eth0', 'member', 'interface', 'eth0'])
         self.cli_set(['firewall', 'zone', 'smoketest-eth0', 'from', 'smoketest-local', 'firewall', 'name', 'smoketest'])
         self.cli_set(['firewall', 'zone', 'smoketest-eth0', 'intra-zone-filtering', 'firewall', 'ipv6-name', 'smoketestv6'])
         self.cli_set(['firewall', 'zone', 'smoketest-local', 'local-zone'])
@@ -970,12 +970,12 @@ class TestFirewall(VyOSUnitTestSHIM.TestCase):
         self.cli_set(['firewall', 'zone', 'LOCAL', 'from', 'ZONE1', 'firewall', 'name', 'ZONE1-to-LOCAL'])
         self.cli_set(['firewall', 'zone', 'LOCAL', 'local-zone'])
         self.cli_set(['firewall', 'zone', 'ZONE1', 'from', 'ZONE2', 'firewall', 'name', 'ZONE2_to_ZONE1'])
-        self.cli_set(['firewall', 'zone', 'ZONE1', 'interface', 'name', 'eth1'])
-        self.cli_set(['firewall', 'zone', 'ZONE1', 'interface', 'name', 'eth2'])
-        self.cli_set(['firewall', 'zone', 'ZONE1', 'interface', 'vrf', 'VRF-1'])
+        self.cli_set(['firewall', 'zone', 'ZONE1', 'member', 'interface', 'eth1'])
+        self.cli_set(['firewall', 'zone', 'ZONE1', 'member', 'interface', 'eth2'])
+        self.cli_set(['firewall', 'zone', 'ZONE1', 'member', 'vrf', 'VRF-1'])
         self.cli_set(['firewall', 'zone', 'ZONE2', 'from', 'LOCAL', 'firewall', 'ipv6-name', 'LOCAL_to_ZONE2_v6'])
-        self.cli_set(['firewall', 'zone', 'ZONE2', 'interface', 'name', 'vtun66'])
-        self.cli_set(['firewall', 'zone', 'ZONE2', 'interface', 'vrf', 'VRF-2'])
+        self.cli_set(['firewall', 'zone', 'ZONE2', 'member', 'interface', 'vtun66'])
+        self.cli_set(['firewall', 'zone', 'ZONE2', 'member', 'vrf', 'VRF-2'])
 
         self.cli_set(['vrf', 'name', 'VRF-1', 'table', '101'])
         self.cli_set(['vrf', 'name', 'VRF-2', 'table', '102'])

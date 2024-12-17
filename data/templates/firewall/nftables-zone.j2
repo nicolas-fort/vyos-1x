@@ -8,13 +8,12 @@
 {% endif %}
 {% for zone_name, zone_conf in zone.items() %}
 {%     if 'local_zone' not in zone_conf %}
-{%         if 'name' in zone_conf.interface %}
-        oifname { {{ zone_conf.interface.name | join(',') }} } counter jump VZONE_{{ zone_name }}
+{%         if 'interface' in zone_conf.member %}
+        oifname { {{ zone_conf.member.interface | join(',') }} } counter jump VZONE_{{ zone_name }}
 {%         endif %}
-{%         if 'vrf' in zone_conf.interface %}
-{%             for vrf_name in zone_conf.interface.vrf %}
+{%         if 'vrf' in zone_conf.member %}
+{%             for vrf_name in zone_conf.member.vrf %}
         oifname { {{ zone_conf['vrf_interfaces'][vrf_name] }} } counter jump VZONE_{{ zone_name }}
-        #oifname { {{ zone_conf.interface.vrf | join(',') }} } counter jump VZONE_{{ zone_name }}
 {%             endfor %}
 {%         endif %}
 {%     endif %}
@@ -49,13 +48,13 @@
 {%         if zone_conf.from is vyos_defined %}
 {%             for from_zone, from_conf in zone_conf.from.items() if from_conf.firewall[fw_name] is vyos_defined %}
 
-{%                 if 'name' in zone[from_zone].interface %}
-        iifname { {{ zone[from_zone].interface.name | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
-        iifname { {{ zone[from_zone].interface.name | join(",") }} } counter return
+{%                 if 'interface' in zone[from_zone].member %}
+        iifname { {{ zone[from_zone].member.interface | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
+        iifname { {{ zone[from_zone].member.interface | join(",") }} } counter return
 {%                 endif %}
-{%                 if 'vrf' in zone[from_zone].interface %}
-        iifname { {{ zone[from_zone].interface.vrf | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
-        iifname { {{ zone[from_zone].interface.vrf | join(",") }} } counter return
+{%                 if 'vrf' in zone[from_zone].member %}
+        iifname { {{ zone[from_zone].member.vrf | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
+        iifname { {{ zone[from_zone].member.vrf | join(",") }} } counter return
 {%                 endif %}
 {%             endfor %}
 {%         endif %}
@@ -65,12 +64,12 @@
         oifname lo counter return
 {%         if zone_conf.from_local is vyos_defined %}
 {%             for from_zone, from_conf in zone_conf.from_local.items() if from_conf.firewall[fw_name] is vyos_defined %}
-{%                 if 'name' in zone[from_zone].interface %}
-        oifname { {{ zone[from_zone].interface.name | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
-        oifname { {{ zone[from_zone].interface.name | join(",") }} } counter return
+{%                 if 'interface' in zone[from_zone].member %}
+        oifname { {{ zone[from_zone].member.interface | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
+        oifname { {{ zone[from_zone].member.interface | join(",") }} } counter return
 {%                 endif %}
-{%                 if 'vrf' in zone[from_zone].interface %}
-{%                     for vrf_name in zone[from_zone].interface.vrf %}
+{%                 if 'vrf' in zone[from_zone].member %}
+{%                     for vrf_name in zone[from_zone].member.vrf %}
         oifname { {{ zone[from_zone]['vrf_interfaces'][vrf_name] }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
         oifname { {{ zone[from_zone]['vrf_interfaces'][vrf_name] }} } counter return
 {%                     endfor %}
@@ -81,30 +80,30 @@
     }
 {%     else %}
     chain VZONE_{{ zone_name }} {
-{%         if 'name' in zone_conf.interface %}
-        iifname { {{ zone_conf.interface.name | join(",") }} } counter {{ zone_conf | nft_intra_zone_action(ipv6) }}
+{%         if 'interface' in zone_conf.member %}
+        iifname { {{ zone_conf.member.interface | join(",") }} } counter {{ zone_conf | nft_intra_zone_action(ipv6) }}
 {%         endif %}
-{%         if 'vrf' in zone_conf.interface %}
-        iifname { {{ zone_conf.interface.vrf | join(",") }} } counter {{ zone_conf | nft_intra_zone_action(ipv6) }}
+{%         if 'vrf' in zone_conf.member %}
+        iifname { {{ zone_conf.member.vrf | join(",") }} } counter {{ zone_conf | nft_intra_zone_action(ipv6) }}
 {%         endif %}
 {%         if zone_conf.intra_zone_filtering is vyos_defined %}
-{%             if 'name' in zone_conf.interface %}
-        iifname { {{ zone_conf.interface.name | join(",") }} } counter return
+{%             if 'interface' in zone_conf.member %}
+        iifname { {{ zone_conf.member.interface | join(",") }} } counter return
 {%             endif %}
-{%             if 'vrf' in zone_conf.interface %}
-        iifname { {{ zone_conf.interface.vrf | join(",") }} } counter return
+{%             if 'vrf' in zone_conf.member %}
+        iifname { {{ zone_conf.member.vrf | join(",") }} } counter return
 {%             endif %}
 {%         endif %}
 {%         if zone_conf.from is vyos_defined %}
 {%             for from_zone, from_conf in zone_conf.from.items() if from_conf.firewall[fw_name] is vyos_defined %}
 {%                 if zone[from_zone].local_zone is not defined %}
-{%                     if 'name' in zone[from_zone].interface %}
-        iifname { {{ zone[from_zone].interface.name | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
-        iifname { {{ zone[from_zone].interface.name | join(",") }} } counter return
+{%                     if 'interface' in zone[from_zone].member %}
+        iifname { {{ zone[from_zone].member.interface | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
+        iifname { {{ zone[from_zone].member.interface | join(",") }} } counter return
 {%                     endif %}
-{%                     if 'vrf' in zone[from_zone].interface %}
-        iifname { {{ zone[from_zone].interface.vrf | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
-        iifname { {{ zone[from_zone].interface.vrf | join(",") }} } counter return
+{%                     if 'vrf' in zone[from_zone].member %}
+        iifname { {{ zone[from_zone].member.vrf | join(",") }} } counter jump NAME{{ suffix }}_{{ from_conf.firewall[fw_name] }}
+        iifname { {{ zone[from_zone].member.vrf | join(",") }} } counter return
 {%                     endif %}
 {%                 endif %}
 {%             endfor %}

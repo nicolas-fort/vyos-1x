@@ -464,12 +464,12 @@
               </node>
             </children>
           </tagNode>
-          <node name="interface">
+          <node name="member">
             <properties>
               <help>Interface associated with zone</help>
             </properties>
             <children>
-              <leafNode name="name">
+              <leafNode name="interface">
                 <properties>
                   <help>Interface associated with zone</help>
                   <valueHelp>

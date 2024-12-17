@@ -18,7 +18,6 @@ import os
 import re
 
 from sys import exit
-
 from vyos.base import Warning
 from vyos.config import Config
 from vyos.configdict import is_node_changed
@@ -135,6 +134,27 @@ def get_config(config=None):
     firewall['geoip_updated'] = geoip_updated(conf, firewall)
 
     fqdn_config_parse(firewall, 'firewall')
+
+    if not os.path.exists(nftables_conf):
+        firewall['first_install'] = True
+
+    if 'zone' in firewall:
+        for local_zone, local_zone_conf in firewall['zone'].items():
+            if 'local_zone' not in local_zone_conf:
+                # Get physical interfaces assigned to the zone if vrf is used:
+                if 'vrf' in local_zone_conf['member']:
+                    local_zone_conf['vrf_interfaces'] = {}
+                    for vrf_name in local_zone_conf['member']['vrf']:
+                        local_zone_conf['vrf_interfaces'][vrf_name] = ','.join(get_vrf_members(vrf_name))
+                continue
+
+            local_zone_conf['from_local'] = {}
+
+            for zone, zone_conf in firewall['zone'].items():
+                if zone == local_zone or 'from' not in zone_conf:
+                    continue
+                if local_zone in zone_conf['from']:
+                    local_zone_conf['from_local'][zone] = zone_conf['from'][local_zone]
 
     set_dependents('conntrack', conf)
 
@@ -448,22 +468,21 @@ def verify(firewall):
 
     if 'zone' in firewall:
         for zone, zone_conf in firewall['zone'].items():
-            if 'local_zone' not in zone_conf and 'interface' not in zone_conf:
+            if 'local_zone' not in zone_conf and 'member' not in zone_conf:
                 raise ConfigError(f'Zone "{zone}" has no interfaces and is not the local zone')
 
             if 'local_zone' in zone_conf:
                 if local_zone:
                     raise ConfigError('There cannot be multiple local zones')
-                if 'interface' in zone_conf:
+                if 'member' in zone_conf:
                     raise ConfigError('Local zone cannot have interfaces assigned')
                 if 'intra_zone_filtering' in zone_conf:
                     raise ConfigError('Local zone cannot use intra-zone-filtering')
                 local_zone = True
 
-            if 'interface' in zone_conf:
-                if 'name'in zone_conf['interface']:
-
-                    for iface in zone_conf['interface']['name']:
+            if 'member' in zone_conf:
+                if 'interface' in zone_conf['member']:
+                    for iface in zone_conf['member']['interface']:
 
                         if iface in zone_interfaces:
                             raise ConfigError(f'Interfaces cannot be assigned to multiple zones')
@@ -471,13 +490,19 @@ def verify(firewall):
                         iface_vrf = get_interface_vrf(iface)
                         if iface_vrf != 'default':
                             Warning(f"Interface {iface} assigned to zone {zone} is in VRF {iface_vrf}. This might not work as expected.")
-                        zone_interfaces += iface
+                        zone_interfaces.append(iface)
 
-                if 'vrf' in zone_conf['interface']:
-                    for vrf in zone_conf['interface']['vrf']:
+                if 'vrf' in zone_conf['member']:
+                    for vrf in zone_conf['member']['vrf']:
                         if vrf in zone_vrf:
                             raise ConfigError(f'VRF cannot be assigned to multiple zones')
-                        zone_vrf += vrf
+                        zone_vrf.append(vrf)
+
+            if 'vrf_interfaces' in zone_conf:
+                for vrf_name, vrf_interfaces in zone_conf['vrf_interfaces'].items():
+                    if not vrf_interfaces:
+                        raise ConfigError(
+                            f'VRF "{vrf_name}" cannot be a member of any zone. It does not contain any interfaces.')
 
             if 'intra_zone_filtering' in zone_conf:
                 intra_zone = zone_conf['intra_zone_filtering']
@@ -513,28 +538,6 @@ def verify(firewall):
     return None
 
 def generate(firewall):
-    if not os.path.exists(nftables_conf):
-        firewall['first_install'] = True
-
-    if 'zone' in firewall:
-        for local_zone, local_zone_conf in firewall['zone'].items():
-            if 'local_zone' not in local_zone_conf:
-                # Get physical interfaces assigned to the zone if vrf is used:
-                if 'vrf' in local_zone_conf['interface']:
-                    local_zone_conf['vrf_interfaces'] = {}
-                    for vrf_name in local_zone_conf['interface']['vrf']:
-                        local_zone_conf['vrf_interfaces'][vrf_name] = ','.join(get_vrf_members(vrf_name))
-                        #local_zone_conf['interface']['vrf'][vrf_name] = ''.join(get_vrf_members(vrf_name))
-                continue
-
-            local_zone_conf['from_local'] = {}
-
-            for zone, zone_conf in firewall['zone'].items():
-                if zone == local_zone or 'from' not in zone_conf:
-                    continue
-                if local_zone in zone_conf['from']:
-                    local_zone_conf['from_local'][zone] = zone_conf['from'][local_zone]
-
     render(nftables_conf, 'firewall/nftables.j2', firewall)
     render(sysctl_file, 'firewall/sysctl-firewall.conf.j2', firewall)
     return None

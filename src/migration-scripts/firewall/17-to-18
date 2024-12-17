@@ -16,9 +16,9 @@
 # From
     # set firewall zone <zone> interface <iface>
 # To
-    # set firewall zone <zone> interface name <iface>
+    # set firewall zone <zone> member interface <iface>
     # or
-    # set firewall zone <zone> interface vrf <vrf>
+    # set firewall zone <zone> member vrf <vrf>
 
 
 from vyos.configtree import ConfigTree
@@ -33,4 +33,5 @@ def migrate(config: ConfigTree) -> None:
     for zone in config.list_nodes(base):
         if config.exists(base + [zone, 'interface']):
             for iface in config.return_values(base + [zone, 'interface']):
-                config.set(base + [zone, 'interface', 'name'], value=iface, replace=False)
+                config.set(base + [zone, 'member', 'interface'], value=iface, replace=False)
+            config.delete(base + [zone, 'interface'])
